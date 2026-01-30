@@ -1,0 +1,46 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb}
+
+\title{Distinction--Persistence Theory (DPT)}
+\author{Joshua Moats}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Distinction--Persistence Theory (DPT) is a general framework for identifying real events in observational data by detecting structured residue after subtraction of the best smooth model. The theory formalizes the principle that meaningful distinctions persist informationally, while noise does not.
+\end{abstract}
+
+\section{Signal Decomposition}
+Let an observed signal be
+\begin{equation}
+x(t) = m(t) + r(t),
+\end{equation}
+where $m(t)$ is the best smooth model and $r(t)$ is the residual.
+
+\section{Distinction}
+A distinction occurs at time $t_0$ when
+\begin{equation}
+\|r(t_0)\| > \tau,
+\end{equation}
+for some threshold $\tau$ defined by the noise floor.
+
+\section{Persistence}
+Persistence is defined as retained coherence of the residual over a neighborhood $W$:
+\begin{equation}
+\mathcal{P}(t_0;W) =
+\int_W w(t - t_0)\,\kappa(r(t), r(t_0))\,dt.
+\end{equation}
+
+\section{DPT Score}
+A bounded coherence-retention score is defined as
+\begin{equation}
+\widehat{\Lambda}(t) =
+Q(t)(1-H_{\mathrm{spec}}(t))(1-\mathrm{Tail}_{\mathrm{frac}}(t))(1-E_{\mathrm{str}}(t)),
+\end{equation}
+with $\widehat{\Lambda}(t)\in[0,1]$.
+
+\section{Core Principle}
+After subtracting the best smooth explanation, real events are those whose residuals persist in ordered form.
+\end{document}
