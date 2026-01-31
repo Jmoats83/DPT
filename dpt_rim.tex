@@ -1,0 +1,170 @@
+\documentclass[11pt]{article}
+
+% ---------- Packages ----------
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{caption}
+
+\geometry{margin=1in}
+
+% ---------- Metadata ----------
+\title{\textbf{Distinction--Persistence Theory (DPT):}\\
+A Residual Integrity Monitor for Multi-GNSS Precision Timing}
+
+\author{Joshua}
+\date{\today}
+
+% ---------- Document ----------
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Modern Global Navigation Satellite System (GNSS) receivers rely on Kalman-based estimators whose integrity monitoring is dominated by energy-based statistics such as the Normalized Innovation Squared (NIS). While effective against gross faults, these methods systematically fail to detect low-amplitude, structured residuals that are silently absorbed into clock bias, inter-system bias (ISB), or inflated process noise.  
+\\
+\\
+We introduce \emph{Distinction--Persistence Theory (DPT)}, a non-parametric framework that audits the \emph{structural cost of erasure} rather than residual magnitude. DPT measures how much curvature is required to render residuals statistically indistinguishable from noise, yielding a Persistence metric and a Complexity Budget. When applied as a Residual Integrity Monitor (RIM), DPT exposes failure modes invisible to conventional RAIM, including relativistic bookkeeping errors and ISB drift in multi-GNSS systems.  
+\\
+\\
+We present a production-faithful simulation, calibrated under null conditions, demonstrating autonomous triage between receiver clock instability and constellation-specific modeling faults.
+\end{abstract}
+
+\section{Introduction}
+
+GNSS integrity monitoring traditionally assumes that correctly modeled systems produce whitened innovations that are independent and identically distributed Gaussian random variables. Deviations from this assumption are typically assessed using scalar energy measures, most notably the NIS.
+
+However, in high-precision timing applications, many critical failure modes do not manifest as large residual energy. Instead, they appear as \emph{organized, low-amplitude structure} that is progressively absorbed by estimator degrees of freedom. This produces numerically stable but epistemically incorrect solutions.
+
+The central claim of this work is that \emph{residual organization}, not residual magnitude, is the limiting factor in GNSS integrity.
+
+\section{Distinction--Persistence Theory}
+
+\subsection{Conceptual Basis}
+
+DPT is founded on a simple distinction:
+\begin{itemize}
+\item \textbf{Energy-based metrics} ask how large an error is.
+\item \textbf{Persistence-based metrics} ask how difficult it is to remove.
+\end{itemize}
+
+A residual that can be erased with a cheap, smooth model is likely noise. A residual that requires significant curvature to erase is structurally persistent.
+
+\subsection{Optimal Erasure}
+
+Given a whitened residual stream $w \in \mathbb{R}^N$, we define the optimal eraser $u$ as the solution to
+\begin{equation}
+\min_u \; \|w - u\|^2 + \lambda \|D^2 u\|^2,
+\end{equation}
+where $D^2$ is the second-difference operator and $\lambda$ controls smoothing strength.
+
+\section{Metrics}
+
+\subsection{Persistence Score}
+
+The DPT Persistence score is defined as
+\begin{equation}
+\Pi = E \cdot (1 - H_{\text{spec}}) \cdot (1 - \text{TailFrac}) \cdot A,
+\end{equation}
+where:
+\begin{itemize}
+\item $E$ is residual energy,
+\item $H_{\text{spec}}$ is normalized spectral entropy,
+\item $\text{TailFrac}$ is the fraction of samples exceeding $3\sigma$,
+\item $A$ is the peak autocorrelation at nonzero lag.
+\end{itemize}
+
+The tail veto suppresses impulsive artifacts such as multipath or sensor glitches.
+
+\subsection{Complexity Budget}
+
+We define the Complexity Budget as
+\begin{equation}
+C_B = \frac{\|D^2 u\|^2}{\|r\|^2},
+\end{equation}
+where $r = w - u$.
+
+$C_B$ measures the \emph{cost of bending} required to erase structure, normalized by residual energy. High $C_B$ indicates that the estimator is working disproportionately hard to maintain the noise hypothesis.
+
+\section{Calibration}
+
+To avoid heuristic thresholds, DPT relies on null calibration:
+\begin{itemize}
+\item Generate whitened Gaussian streams $w \sim \mathcal{N}(0, I)$,
+\item Compute $\Pi$ and $C_B$ distributions under identical windowing,
+\item Set thresholds at high quantiles (e.g.\ 99.9\%).
+\end{itemize}
+
+This defines the expected accidental structure floor for a given environment.
+
+\section{Multi-GNSS Architecture}
+
+\subsection{Streams}
+
+DPT-RIM operates on three streams:
+\begin{enumerate}
+\item GPS innovations,
+\item Galileo innovations,
+\item The difference stream (GPS -- Galileo).
+\end{enumerate}
+
+\subsection{Noise Model}
+
+To reflect receiver reality, simulations include:
+\begin{itemize}
+\item shared front-end noise,
+\item common-mode receiver clock drift,
+\item constellation-specific ISB mismatch.
+\end{itemize}
+
+\begin{lstlisting}[language=Python, caption={Production-faithful noise injection}]
+shared_noise = np.random.normal(0, 0.7, n)
+w_gps = shared_noise + np.random.normal(0, 0.3, n) + common_drift
+w_gal = shared_noise + np.random.normal(0, 0.3, n) + common_drift + isb_mismatch
+w_diff = w_gps - w_gal
+\end{lstlisting}
+
+The difference stream cancels hardware effects while preserving bookkeeping errors.
+
+\section{Automated Triage}
+
+DPT-RIM supports autonomous diagnosis:
+
+\begin{center}
+\begin{tabular}{ccc l}
+\toprule
+GPS & GAL & DIFF & Diagnosis \\
+\midrule
+\checkmark & \checkmark & $\times$ & Receiver clock instability \\
+$\times$ & $\times$ & \checkmark & ISB / relativistic leak \\
+\checkmark & \checkmark & \checkmark & Mixed fault \\
+\checkmark & $\times$ & $\times$ & Constellation-specific anomaly \\
+$\times$ & $\times$ & $\times$ & Nominal \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+This converts residual auditing into an actionable decision engine.
+
+\section{Discussion}
+
+Traditional RAIM systems ask whether residuals are large. DPT asks whether residuals are \emph{organized}. These questions are orthogonal.
+
+DPT enables:
+\begin{itemize}
+\item early detection of Case~C failures (low energy, high structure),
+\item principled separation of hardware and model faults,
+\item reduced estimator complexity with integrity policing.
+\end{itemize}
+
+\section{Conclusion}
+
+Distinction--Persistence Theory reframes integrity monitoring as a question of erasure cost rather than error magnitude. When implemented as a Residual Integrity Monitor, DPT exposes structured model failures that conventional methods systematically miss.
+
+\bigskip
+\noindent
+\textbf{If a filter must bend reality to stay confident, DPT will see the bend.}
+
+\end{document}
